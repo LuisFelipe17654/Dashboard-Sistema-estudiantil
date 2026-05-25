@@ -28,6 +28,35 @@ def _promedio_por_estudiante(registros):
             promedios_finales[id_est] = sum(valores) / len(valores)
     return promedios_finales
 
+
+# funciones para calcular promedios por estudiante, listar estudiantes por promedio y mostrar aprobados/reprobados según los registros de notas disponibles. Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
+def obtener_promedios_por_estudiante():
+    """Devolver un diccionario de promedios por ID de estudiante."""
+    registros = _leer_notas_txt()
+    if not registros:
+        estudiantes_list = cargar_estudiantes()
+        registros = []
+        for e in estudiantes_list:
+            id_est = e.get('id_estudiante') or e.get('matricula')
+            notas = _extraer_notas_de_fila(e)
+            if id_est and notas:
+                registros.append({'id_estudiante': id_est, 'asignatura': e.get('asignatura', ''), 'notas': notas})
+    return _promedio_por_estudiante(registros)
+
+
+def calcular_promedio_por_id(id_estudiante):
+    """Calcular y devolver el promedio de un estudiante por su ID."""
+    promedios = obtener_promedios_por_estudiante()
+    return promedios.get(id_estudiante)
+
+
+def obtener_estados_aprobados_reprobados():
+    """Devolver listas de aprobados y reprobados según promedio."""
+    promedios = obtener_promedios_por_estudiante()
+    aprobados = {id_est: prom for id_est, prom in promedios.items() if prom >= 3.0}
+    reprobados = {id_est: prom for id_est, prom in promedios.items() if prom < 3.0}
+    return aprobados, reprobados
+
 # Funciones para calcular promedios por estudiante, listar estudiantes por promedio y mostrar aprobados/reprobados según los registros de notas disponibles. Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
 def calcular_promedio(id_estudiante):
     """Imprimir el promedio del estudiante identificado por `id_estudiante`."""

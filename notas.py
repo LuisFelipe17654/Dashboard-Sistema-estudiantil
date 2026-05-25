@@ -48,6 +48,23 @@ def _leer_notas_txt():
     return registros
 
 
+# Funcion para leer los registros de notas desde `notas.txt` y devolverlos en un formato estructurado para su uso en otras partes del sistema.
+def leer_notas():
+    """Leer y devolver los registros de notas desde notas.txt."""
+    registros = _leer_notas_txt()
+    salida = []
+    for registro in registros:
+        notas_valores = registro.get('notas', [])
+        salida.append({
+            'id_estudiante': registro.get('id_estudiante', ''),
+            'asignatura': registro.get('asignatura', ''),
+            'nota_1': notas_valores[0] if len(notas_valores) > 0 else None,
+            'nota_2': notas_valores[1] if len(notas_valores) > 1 else None,
+            'nota_3': notas_valores[2] if len(notas_valores) > 2 else None,
+        })
+    return salida
+
+
 # Funciones para agregar, actualizar y listar notas, así como leer el archivo de notas y sincronizar con el CSV de estudiantes.
 def _guardar_nota_en_csv(id_estudiante, asignatura, notas):
     """Actualizar el registro de notas en el CSV de estudiantes para mantener sincronía."""
@@ -163,8 +180,10 @@ def agregar_nota(id_estudiante, asignatura, nota):
             writer.writerow(row)
         _guardar_nota_en_csv(id_estudiante, asignatura, notas)
         print("Nota agregada exitosamente.")
+        return True
     except Exception as e:
         print(f"Error al agregar nota: {e}")
+        return False
 
 
 # Funciones para agregar, actualizar y listar notas, así como leer el archivo de notas y sincronizar con el CSV de estudiantes.
@@ -192,7 +211,7 @@ def actualizar_nota(id_estudiante, asignatura, nueva_nota):
                 registros.append(row)
         if not updated:
             print("No se encontró la nota indicada para actualizar.")
-            return
+            return False
         with open(archivo_notas, mode='w', newline='') as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames)
             writer.writeheader()
@@ -200,10 +219,13 @@ def actualizar_nota(id_estudiante, asignatura, nueva_nota):
         if notas_para_csv is not None:
             _guardar_nota_en_csv(id_estudiante, asignatura, notas_para_csv)
         print("Nota actualizada exitosamente.")
+        return True
     except FileNotFoundError:
         print("Error: El archivo de notas no existe.")
+        return False
     except Exception as e:
         print(f"Error al actualizar nota: {e}")
+        return False
 
 
 # Funciones para agregar, actualizar y listar notas, así como leer el archivo de notas y sincronizar con el CSV de estudiantes.

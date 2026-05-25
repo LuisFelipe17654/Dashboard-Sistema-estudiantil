@@ -161,8 +161,10 @@ def registrar_estudiante(matricula, nombre, apellido, edad, id_estudiante, carre
                 writer.writeheader()
             writer.writerow(row)
         print("Estudiante registrado exitosamente.")
+        return True
     except Exception as e:
         print(f"Error al registrar estudiante: {e}")
+        return False
 
 
 # Funciones para cargar estudiantes desde CSV, registrar nuevos estudiantes, actualizar datos, buscar por ID y filtrar por carrera.
@@ -245,7 +247,7 @@ def actualizar_estudiante(matricula, nombre=None, apellido=None, edad=None, id_e
                 updated = True
         if not updated:
             print("Estudiante no encontrado para actualizar.")
-            return
+            return False
         fieldnames = _obtener_fieldnames_estudiantes()
         with open(archivo_estudiantes, mode='w', newline='') as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -254,8 +256,10 @@ def actualizar_estudiante(matricula, nombre=None, apellido=None, edad=None, id_e
                 row = {fn: e.get(fn, '') for fn in fieldnames}
                 writer.writerow(row)
         print("Estudiante actualizado exitosamente.")
+        return True
     except Exception as e:
         print(f"Error al actualizar estudiante: {e}")
+        return False
 
 
 # Funciones para cargar estudiantes desde CSV, registrar nuevos estudiantes, actualizar datos, buscar por ID y filtrar por carrera.
