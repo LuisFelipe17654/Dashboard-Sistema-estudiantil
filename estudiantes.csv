@@ -1,0 +1,7 @@
+matricula,nombre,apellido,edad,id_estudiante,carrera,asignatura,nota_1,nota_2,nota_3
+2026001,Carlos,Rodriguez,38,EST001,ingenieria de sistemas,programacion i,4.0,4.6,
+2026002,Maria,Gomez,19,EST002,administracion,contabilidad,3.8,3.5,4.0
+2026003,Juan,Torres,20,EST003,derecho,constitucional,2.9,3.2,2.8
+2026004,Laura,Vargas,17,EST004,psicologia,psicologia general,5.0,4.8,5.0
+2026005,Andres,Mendez,21,EST005,arquitectura,dibujo tecnico,1.5,2.0,1.8
+2026006,Prueba,Pruebas,14,EST006,derecho,civil,3.6,3.8,
