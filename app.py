@@ -1,6 +1,4 @@
-# Este archivo implementa un dashboard interactivo usando Streamlit para visualizar y gestionar estudiantes, notas y promedios. Se conecta con los módulos existentes (`estudiantes.py`, `notas.py`, `promedios.py`) para mostrar datos en tablas, gráficos y permitir la actualización de registros. El dashboard incluye filtros dinámicos por carrera y asignatura, así como análisis visuales de tendencias en los datos.
-
-"""importaciones necesarias para la construcción del dashboard, incluyendo Streamlit para la interfaz, pandas para el manejo de datos y matplotlib para las visualizaciones. También se importan los módulos del sistema para acceder a las funcionalidades de gestión de estudiantes, notas y promedios."""
+"""Dashboard Estudiantil con soporte para subir archivos, borrar registros y paletas de color."""
 
 # Libreria os para manejo de rutas y archivos
 import os
@@ -14,24 +12,17 @@ import streamlit as st
 import estudiantes
 import notas
 import promedios
-
+from utils import archivo_estudiantes, archivo_notas
 
 """
 Este módulo se encarga de calcular promedios por estudiante, listar estudiantes por promedio y mostrar aprobados/reprobados según los registros de notas disponibles. Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
 """
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOADS_DIR = os.path.join(BASE_DIR, 'uploads')
+os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 EXPECTED_STUDENT_COLUMNS = [
-    'matricula',
-    'nombre',
-    'apellido',
-    'edad',
-    'id_estudiante',
-    'carrera',
-    'asignatura',
-    'nota_1',
-    'nota_2',
-    'nota_3',
+    'matricula', 'nombre', 'apellido', 'edad', 'id_estudiante', 'carrera', 'asignatura', 'nota_1', 'nota_2', 'nota_3'
 ]
 
 
@@ -55,10 +46,9 @@ def normalize_students(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# st.cache_data - load_students para almacenar en caché los datos de estudiantes y notas, evitando recargas innecesarias y mejorando el rendimiento del dashboard al acceder a los datos desde los módulos del sistema.
 @st.cache_data
-def load_students() -> pd.DataFrame:
-    estudiantes_list = estudiantes.cargar_estudiantes()
+def load_students(archivo=None) -> pd.DataFrame:
+    estudiantes_list = estudiantes.cargar_estudiantes(archivo=archivo)
     if not estudiantes_list:
         return pd.DataFrame(columns=EXPECTED_STUDENT_COLUMNS + ['promedio'])
     df = pd.DataFrame(estudiantes_list)
@@ -67,8 +57,8 @@ def load_students() -> pd.DataFrame:
 
 # st.cache_data - load_notes para almacenar en caché los datos de notas, evitando recargas innecesarias y mejorando el rendimiento del dashboard al acceder a los datos desde los módulos del sistema.
 @st.cache_data
-def load_notes() -> pd.DataFrame:
-    notas_list = notas.leer_notas()
+def load_notes(archivo=None) -> pd.DataFrame:
+    notas_list = notas.leer_notas(archivo=archivo)
     if not notas_list:
         df = pd.DataFrame(columns=['id_estudiante', 'asignatura', 'nota_1', 'nota_2', 'nota_3'])
     else:
@@ -99,7 +89,7 @@ def career_assignment_filters(df: pd.DataFrame):
 def plot_grade_distribution(df: pd.DataFrame, title: str):
     grades = df[['nota_1', 'nota_2', 'nota_3']].melt(value_name='nota')['nota'].dropna()
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.hist(grades, bins=[1, 2, 3, 4, 5, 6], edgecolor='black', color='#4c72b0')
+    ax.hist(grades, bins=[1, 2, 3, 4, 5, 6], edgecolor='black', color=plt.cm.viridis(0.6))
     ax.set_title(title)
     ax.set_xlabel('Nota')
     ax.set_ylabel('Cantidad de valores')
@@ -117,7 +107,9 @@ def plot_bar_average(df: pd.DataFrame, group_by: str, label: str, title: str):
         st.write('No hay datos suficientes para graficar.')
         return
     fig, ax = plt.subplots(figsize=(8, 4))
-    summary.plot(kind='bar', color='#f28e2b', ax=ax)
+    cmap = plt.cm.get_cmap('tab20')
+    colors = [cmap(i % cmap.N) for i in range(len(summary))]
+    summary.plot(kind='bar', color=colors, ax=ax)
     ax.set_title(title)
     ax.set_ylabel('Promedio')
     ax.set_xlabel(label)
@@ -125,8 +117,7 @@ def plot_bar_average(df: pd.DataFrame, group_by: str, label: str, title: str):
     st.pyplot(fig)
 
 
-# render_students_page para mostrar la página de estudiantes en el dashboard, incluyendo una tabla de estudiantes con filtros dinámicos, métricas clave y formularios para registrar y actualizar estudiantes, proporcionando una interfaz interactiva para gestionar la información de los estudiantes.
-def render_students_page(df_students: pd.DataFrame):
+def render_students_page(df_students: pd.DataFrame, student_file_path: str):
     st.header('Estudiantes')
     st.markdown('Explora la lista de estudiantes y filtra por carrera o asignatura.')
 
@@ -161,7 +152,7 @@ def render_students_page(df_students: pd.DataFrame):
             submitted = st.form_submit_button('Registrar estudiante')
             # if submitted para manejar la lógica de registro de un nuevo estudiante, validando los datos ingresados y utilizando las funciones del módulo `estudiantes` para agregar el nuevo estudiante al sistema, proporcionando retroalimentación sobre el éxito o fracaso del registro.
             if submitted:
-                matricula, nuevo_id = estudiantes.registrar_estudiante_auto(nombre, apellido, edad, carrera)
+                matricula, nuevo_id = estudiantes.registrar_estudiante_auto(nombre, apellido, edad, carrera, archivo=student_file_path)
                 if nuevo_id:
                     st.success(f'Estudiante registrado con ID {nuevo_id} y matrícula {matricula}.')
                     st.experimental_rerun()
@@ -180,24 +171,39 @@ def render_students_page(df_students: pd.DataFrame):
             submitted = st.form_submit_button('Actualizar estudiante')
             # if submitted para manejar la lógica de actualización de un estudiante existente, validando los datos ingresados y utilizando las funciones del módulo `estudiantes` para actualizar la información del estudiante en el sistema, proporcionando retroalimentación sobre el éxito o fracaso de la actualización.
             if submitted:
-                success = estudiantes.actualizar_estudiante(matricula, nombre or None, apellido or None, edad or None, id_estudiante or None, carrera or None)
+                success = estudiantes.actualizar_estudiante(matricula, nombre or None, apellido or None, edad or None, id_estudiante or None, carrera or None, archivo=student_file_path)
                 if success:
                     st.success('Datos de estudiante actualizados correctamente.')
                     st.experimental_rerun()
                 else:
                     st.error('No se pudo actualizar el estudiante. Revise la matrícula e intente de nuevo.')
 
-    # with st.expander para mostrar una gráfica de la distribución de notas por estudiante, proporcionando una visualización clara de cómo se distribuyen las calificaciones entre los estudiantes filtrados, lo que puede ayudar a identificar tendencias o áreas de mejora específicas para ese grupo de estudiantes.
+    with st.expander('Eliminar estudiante (dos pasos)'):
+        id_to_delete = st.text_input('Matrícula o ID del estudiante a eliminar')
+        if id_to_delete:
+            detalle = df_students.loc[(df_students['matricula'].astype(str) == str(id_to_delete)) | (df_students['id_estudiante'].astype(str) == str(id_to_delete))]
+            if not detalle.empty:
+                st.write(detalle.reset_index(drop=True))
+                confirm = st.text_input('Escriba ELIMINAR para confirmar')
+                if confirm == 'ELIMINAR':
+                    ok = estudiantes.eliminar_estudiante(id_to_delete, archivo=student_file_path)
+                    if ok:
+                        st.success('Estudiante eliminado.')
+                        st.experimental_rerun()
+                    else:
+                        st.error('No se pudo eliminar el estudiante.')
+            else:
+                st.info('No se encontró el estudiante especificado.')
+
     with st.expander('Gráfica de distribución de notas en estudiantes'):
         plot_grade_distribution(df_filtrado, 'Distribución de notas por estudiante')
 
 
-# render_notes_page para mostrar la página de notas en el dashboard, incluyendo una tabla de notas, formularios para agregar y actualizar notas, y visualizaciones de promedios por asignatura, proporcionando una interfaz interactiva para gestionar las notas de los estudiantes.
-def render_notes_page(df_students: pd.DataFrame, df_notes: pd.DataFrame):
+def render_notes_page(df_students: pd.DataFrame, df_notes: pd.DataFrame, student_file_path: str, notes_file_path: str):
     st.header('Notas')
     st.markdown('Visualiza y actualiza las notas usando la lógica del sistema existente.')
 
-    st.subheader('Notas desde notas.txt')
+    st.subheader('Notas cargadas')
     st.dataframe(df_notes[['id_estudiante', 'asignatura', 'nota_1', 'nota_2', 'nota_3', 'promedio']])
 
     st.subheader('Agregar nueva nota')
@@ -210,7 +216,7 @@ def render_notes_page(df_students: pd.DataFrame, df_notes: pd.DataFrame):
         submitted = st.form_submit_button('Agregar nota')
         if submitted:
             notas_lista = [nota for nota in [nota1, nota2, nota3] if nota.strip() != '']
-            success = notas.agregar_nota(id_estudiante.strip(), asignatura, notas_lista)
+            success = notas.agregar_nota(id_estudiante.strip(), asignatura, notas_lista, archivo_notas_destino=notes_file_path, archivo_estudiantes_destino=student_file_path)
             if success:
                 st.success('Nota agregada correctamente.')
                 st.experimental_rerun()
@@ -224,26 +230,43 @@ def render_notes_page(df_students: pd.DataFrame, df_notes: pd.DataFrame):
         nueva_nota = st.text_input('Nueva nota')
         submitted = st.form_submit_button('Actualizar nota')
         if submitted:
-            success = notas.actualizar_nota(id_estudiante.strip(), asignatura, nueva_nota)
+            success = notas.actualizar_nota(id_estudiante.strip(), asignatura, nueva_nota, archivo_notas_destino=notes_file_path, archivo_estudiantes_destino=student_file_path)
             if success:
                 st.success('Nota actualizada correctamente.')
                 st.experimental_rerun()
             else:
                 st.error('No se pudo actualizar la nota. Verifique los datos.')
 
-    st.subheader('Promedio por asignatura en notas.txt')
+    with st.expander('Eliminar nota (dos pasos)'):
+        idn = st.text_input('ID Estudiante para eliminar nota')
+        asign = st.text_input('Asignatura a eliminar').strip().lower()
+        if idn and asign:
+            matches = df_notes.loc[(df_notes['id_estudiante'] == idn) & (df_notes['asignatura'] == asign)]
+            if not matches.empty:
+                st.write(matches.reset_index(drop=True))
+                confirm = st.text_input('Escriba ELIMINAR para confirmar la eliminación de la nota')
+                if confirm == 'ELIMINAR':
+                    ok = notas.eliminar_nota(idn, asign, archivo_notas_destino=notes_file_path, archivo_estudiantes_destino=student_file_path)
+                    if ok:
+                        st.success('Nota eliminada correctamente.')
+                        st.experimental_rerun()
+                    else:
+                        st.error('No se pudo eliminar la nota.')
+            else:
+                st.info('No se encontró la nota especificada.')
+
+    st.subheader('Promedio por asignatura')
     if not df_notes.empty:
         asignatura_promedios = df_notes.groupby('asignatura')['promedio'].mean().sort_values(ascending=False)
         st.bar_chart(asignatura_promedios)
     else:
-        st.write('No hay registros en notas.txt.')
+        st.write('No hay registros en notas.')
 
-    with st.expander('Histograma de notas en notas.txt'):
-        plot_grade_distribution(df_notes, 'Distribución de notas en notas.txt')
+    with st.expander('Histograma de notas'):
+        plot_grade_distribution(df_notes, 'Distribución de notas en notas')
 
 
-# render_averages_page para mostrar la página de promedios en el dashboard, incluyendo una tabla de promedios por estudiante, gráficos de los mejores y peores promedios, y métricas de aprobados/reprobados, proporcionando una interfaz interactiva para analizar los promedios de los estudiantes utilizando los datos disponibles.
-def render_averages_page(df_students: pd.DataFrame):
+def render_averages_page(df_students: pd.DataFrame, notes_file_path: str):
     st.header('Promedios')
     st.markdown('Revisa promedios usando los datos del sistema.')
 
@@ -252,14 +275,8 @@ def render_averages_page(df_students: pd.DataFrame):
         st.warning('No hay promedios calculables con los datos actuales.')
         return
 
-    averages_df = pd.DataFrame(
-        [{'id_estudiante': id_est, 'promedio_estudiante': valor} for id_est, valor in promedios_data.items()]
-    )
-    merged = averages_df.merge(
-        df_students[['id_estudiante', 'nombre', 'apellido', 'carrera']].drop_duplicates('id_estudiante'),
-        on='id_estudiante',
-        how='left',
-    )
+    averages_df = pd.DataFrame([{'id_estudiante': id_est, 'promedio_estudiante': valor} for id_est, valor in promedios_data.items()])
+    merged = averages_df.merge(df_students[['id_estudiante', 'nombre', 'apellido', 'carrera']].drop_duplicates('id_estudiante'), on='id_estudiante', how='left')
     merged['estado'] = merged['promedio_estudiante'].apply(lambda x: 'Aprobado' if x >= 3.0 else 'Reprobado')
 
     st.subheader('Promedio general por estudiante')
@@ -280,7 +297,9 @@ def render_averages_page(df_students: pd.DataFrame):
     with st.expander('Gráfico de los mejores promedios'):
         fig, ax = plt.subplots(figsize=(8, 4))
         top = merged.sort_values('promedio_estudiante', ascending=False).head(10)
-        ax.bar(top['id_estudiante'], top['promedio_estudiante'], color='#2ca02c')
+        cmap = plt.cm.get_cmap('Set2')
+        colors = [cmap(i % cmap.N) for i in range(len(top))]
+        ax.bar(top['id_estudiante'], top['promedio_estudiante'], color=colors)
         ax.set_ylim(0, 5)
         ax.set_title('Top 10 promedios')
         ax.set_xlabel('ID Estudiante')
@@ -289,7 +308,7 @@ def render_averages_page(df_students: pd.DataFrame):
 
     st.subheader('Promedio por carrera')
     career_avg = merged.groupby('carrera')['promedio_estudiante'].mean().sort_values(ascending=False)
-    st.bar_chart(career_avg)
+    plot_bar_average(pd.DataFrame({'carrera': career_avg.index, 'promedio': career_avg.values}), 'carrera', 'Carrera', 'Promedio promedio por carrera')
 
 
 # render_analysis_page para mostrar la página de análisis en el dashboard, incluyendo gráficos dinámicos para comprender tendencias por carrera, asignatura y edades, proporcionando una interfaz interactiva para analizar los datos de los estudiantes desde diferentes perspectivas y descubrir patrones o insights relevantes.
@@ -324,16 +343,52 @@ def main():
     st.title('Dashboard Estudiantil')
     st.markdown('Una interfaz interactiva para gestionar estudiantes, notas y promedios usando las funcionalidades existentes.')
 
+    # Sidebar: subida de archivos (acepta cualquier nombre, se almacena en /uploads)
+    st.sidebar.header('Cargar datos')
+    uploaded_students = st.sidebar.file_uploader('Subir CSV de estudiantes', type=['csv'], key='up_students')
+    uploaded_notes = st.sidebar.file_uploader('Subir archivo de notas (CSV o TXT)', type=['csv', 'txt'], key='up_notes')
+
+    student_file_path = archivo_estudiantes
+    notes_file_path = archivo_notas
+
+    if uploaded_students is not None:
+        dest = os.path.join(UPLOADS_DIR, uploaded_students.name)
+        with open(dest, 'wb') as f:
+            f.write(uploaded_students.getbuffer())
+        st.sidebar.success(f'Archivo de estudiantes subido: {uploaded_students.name}')
+        student_file_path = dest
+
+    if uploaded_notes is not None:
+        destn = os.path.join(UPLOADS_DIR, uploaded_notes.name)
+        with open(destn, 'wb') as f:
+            f.write(uploaded_notes.getbuffer())
+        st.sidebar.success(f'Archivo de notas subido: {uploaded_notes.name}')
+        notes_file_path = destn
+
+    # Mostrar opción para eliminar archivos subidos
+    st.sidebar.markdown('---')
+    st.sidebar.markdown('Archivos subidos:')
+    files = os.listdir(UPLOADS_DIR)
+    for fn in files:
+        col1, col2 = st.sidebar.columns([3,1])
+        col1.write(fn)
+        if col2.button('Eliminar', key=f'del_{fn}'):
+            try:
+                os.remove(os.path.join(UPLOADS_DIR, fn))
+                st.experimental_rerun()
+            except Exception:
+                st.sidebar.error('No se pudo eliminar el archivo')
+
     page = st.sidebar.selectbox('Seleccionar sección', ['Estudiantes', 'Notas', 'Promedios', 'Análisis'])
-    df_students = load_students()
-    df_notes = load_notes()
+    df_students = load_students(archivo=student_file_path)
+    df_notes = load_notes(archivo=notes_file_path)
 
     if page == 'Estudiantes':
-        render_students_page(df_students)
+        render_students_page(df_students, student_file_path)
     elif page == 'Notas':
-        render_notes_page(df_students, df_notes)
+        render_notes_page(df_students, df_notes, student_file_path, notes_file_path)
     elif page == 'Promedios':
-        render_averages_page(df_students)
+        render_averages_page(df_students, notes_file_path)
     elif page == 'Análisis':
         render_analysis_page(df_students)
 
