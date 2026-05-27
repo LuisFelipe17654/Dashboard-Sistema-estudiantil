@@ -1,7 +1,8 @@
 """Dashboard Estudiantil con soporte para subir archivos, borrar registros y paletas de color."""
 
-# Libreria os para manejo de rutas y archivos
+# Libreria os para manejo de rutas de archivos y tiempo
 import os
+import time
 
 # Librerias para manejo de datos y visualización
 import matplotlib.pyplot as plt
@@ -14,9 +15,7 @@ import notas
 import promedios
 from utils import archivo_estudiantes, archivo_notas
 
-"""
-Este módulo se encarga de calcular promedios por estudiante, listar estudiantes por promedio y mostrar aprobados/reprobados según los registros de notas disponibles. Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
-"""
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOADS_DIR = os.path.join(BASE_DIR, 'uploads')
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -120,6 +119,29 @@ def plot_bar_average(df: pd.DataFrame, group_by: str, label: str, title: str):
 def render_students_page(df_students: pd.DataFrame, student_file_path: str):
     st.header('Estudiantes')
     st.markdown('Explora la lista de estudiantes y filtra por carrera o asignatura.')
+    # Inicializar session_state para limpiar formularios
+    if 'reg_nombre' not in st.session_state:
+        st.session_state.reg_nombre = ''
+    if 'reg_apellido' not in st.session_state:
+        st.session_state.reg_apellido = ''
+    if 'reg_edad' not in st.session_state:
+        st.session_state.reg_edad = ''
+    if 'upd_matricula' not in st.session_state:
+        st.session_state.upd_matricula = ''
+    if 'upd_nombre' not in st.session_state:
+        st.session_state.upd_nombre = ''
+    if 'upd_apellido' not in st.session_state:
+        st.session_state.upd_apellido = ''
+    if 'upd_edad' not in st.session_state:
+        st.session_state.upd_edad = ''
+    if 'upd_id' not in st.session_state:
+        st.session_state.upd_id = ''
+    if 'del_id' not in st.session_state:
+        st.session_state.del_id = ''
+    # Verificar si hay datos
+    if df_students.empty:
+        st.warning('No hay datos de estudiantes. Por favor, sube un archivo CSV de estudiantes en la sección "Cargar datos" de la barra lateral para comenzar.')
+        return
 
     # Aplicar filtros dinámicos por carrera y asignatura en el dashboard, permitiendo a los usuarios explorar los datos de estudiantes según sus intereses específicos.
     df_filtrado = career_assignment_filters(df_students)
@@ -145,9 +167,9 @@ def render_students_page(df_students: pd.DataFrame, student_file_path: str):
     # with st.expander para registrar un nuevo estudiante, proporcionando un formulario interactivo para ingresar los datos del estudiante y agregarlo al sistema, mejorando la gestión de estudiantes desde el dashboard.
     with st.expander('Registrar nuevo estudiante'):
         with st.form('registrar_estudiante_form'):
-            nombre = st.text_input('Nombre')
-            apellido = st.text_input('Apellido')
-            edad = st.text_input('Edad')
+            nombre = st.text_input('Nombre', value=st.session_state.reg_nombre)
+            apellido = st.text_input('Apellido', value=st.session_state.reg_apellido)
+            edad = st.text_input('Edad', value=st.session_state.reg_edad)
             carrera = st.selectbox('Carrera', list(estudiantes.CARRERAS.keys()))
             submitted = st.form_submit_button('Registrar estudiante')
             # if submitted para manejar la lógica de registro de un nuevo estudiante, validando los datos ingresados y utilizando las funciones del módulo `estudiantes` para agregar el nuevo estudiante al sistema, proporcionando retroalimentación sobre el éxito o fracaso del registro.
@@ -155,18 +177,25 @@ def render_students_page(df_students: pd.DataFrame, student_file_path: str):
                 matricula, nuevo_id = estudiantes.registrar_estudiante_auto(nombre, apellido, edad, carrera, archivo=student_file_path)
                 if nuevo_id:
                     st.success(f'Estudiante registrado con ID {nuevo_id} y matrícula {matricula}.')
-                    st.experimental_rerun()
+                    time.sleep(2)
+                    # Limpiar formulario
+                    st.session_state.reg_nombre = ''
+                    st.session_state.reg_apellido = ''
+                    st.session_state.reg_edad = ''
+                    st.cache_data.clear()
+                    st.rerun()
                 else:
                     st.error('No se pudo registrar el estudiante. Verifique los datos e intente de nuevo.')
 
     # with st.expander para actualizar los datos de un estudiante existente, proporcionando un formulario interactivo para ingresar la matrícula del estudiante a actualizar y los nuevos datos, permitiendo modificar la información de un estudiante ya registrado en el sistema.
     with st.expander('Actualizar datos de estudiante'):
+        st.info('Deja los campos opcionales en blanco si no deseas cambiarlos. Solo se actualizarán los campos que completes.')
         with st.form('actualizar_estudiante_form'):
-            matricula = st.text_input('Matrícula del estudiante a actualizar')
-            nombre = st.text_input('Nuevo nombre (opcional)')
-            apellido = st.text_input('Nuevo apellido (opcional)')
-            edad = st.text_input('Nueva edad (opcional)')
-            id_estudiante = st.text_input('Nuevo ID Estudiante (opcional)')
+            matricula = st.text_input('Matrícula del estudiante a actualizar', value=st.session_state.upd_matricula)
+            nombre = st.text_input('Nuevo nombre (opcional - dejar en blanco si no deseas cambiar)', value=st.session_state.upd_nombre)
+            apellido = st.text_input('Nuevo apellido (opcional - dejar en blanco si no deseas cambiar)', value=st.session_state.upd_apellido)
+            edad = st.text_input('Nueva edad (opcional - dejar en blanco si no deseas cambiar)', value=st.session_state.upd_edad)
+            id_estudiante = st.text_input('Nuevo ID Estudiante (opcional - dejar en blanco si no deseas cambiar)', value=st.session_state.upd_id)
             carrera = st.selectbox('Nueva carrera (opcional)', [''] + list(estudiantes.CARRERAS.keys()))
             submitted = st.form_submit_button('Actualizar estudiante')
             # if submitted para manejar la lógica de actualización de un estudiante existente, validando los datos ingresados y utilizando las funciones del módulo `estudiantes` para actualizar la información del estudiante en el sistema, proporcionando retroalimentación sobre el éxito o fracaso de la actualización.
@@ -174,12 +203,20 @@ def render_students_page(df_students: pd.DataFrame, student_file_path: str):
                 success = estudiantes.actualizar_estudiante(matricula, nombre or None, apellido or None, edad or None, id_estudiante or None, carrera or None, archivo=student_file_path)
                 if success:
                     st.success('Datos de estudiante actualizados correctamente.')
-                    st.experimental_rerun()
+                    time.sleep(2)
+                    # Limpiar formulario
+                    st.session_state.upd_matricula = ''
+                    st.session_state.upd_nombre = ''
+                    st.session_state.upd_apellido = ''
+                    st.session_state.upd_edad = ''
+                    st.session_state.upd_id = ''
+                    st.cache_data.clear()
+                    st.rerun()
                 else:
                     st.error('No se pudo actualizar el estudiante. Revise la matrícula e intente de nuevo.')
 
     with st.expander('Eliminar estudiante (dos pasos)'):
-        id_to_delete = st.text_input('Matrícula o ID del estudiante a eliminar')
+        id_to_delete = st.text_input('Matrícula o ID del estudiante a eliminar', value=st.session_state.del_id)
         if id_to_delete:
             detalle = df_students.loc[(df_students['matricula'].astype(str) == str(id_to_delete)) | (df_students['id_estudiante'].astype(str) == str(id_to_delete))]
             if not detalle.empty:
@@ -189,7 +226,11 @@ def render_students_page(df_students: pd.DataFrame, student_file_path: str):
                     ok = estudiantes.eliminar_estudiante(id_to_delete, archivo=student_file_path)
                     if ok:
                         st.success('Estudiante eliminado.')
-                        st.experimental_rerun()
+                        time.sleep(2)
+                        # Limpiar formulario
+                        st.session_state.del_id = ''
+                        st.cache_data.clear()
+                        st.rerun()
                     else:
                         st.error('No se pudo eliminar el estudiante.')
             else:
@@ -203,43 +244,84 @@ def render_notes_page(df_students: pd.DataFrame, df_notes: pd.DataFrame, student
     st.header('Notas')
     st.markdown('Visualiza y actualiza las notas usando la lógica del sistema existente.')
 
+    # Inicializar session_state para limpiar formularios de notas
+    if 'add_id_est' not in st.session_state:
+        st.session_state.add_id_est = ''
+    if 'add_asign' not in st.session_state:
+        st.session_state.add_asign = ''
+    if 'add_nota1' not in st.session_state:
+        st.session_state.add_nota1 = ''
+    if 'add_nota2' not in st.session_state:
+        st.session_state.add_nota2 = ''
+    if 'add_nota3' not in st.session_state:
+        st.session_state.add_nota3 = ''
+    if 'upd_id_est' not in st.session_state:
+        st.session_state.upd_id_est = ''
+    if 'upd_asign' not in st.session_state:
+        st.session_state.upd_asign = ''
+    if 'upd_nota' not in st.session_state:
+        st.session_state.upd_nota = ''
+    if 'del_id_est' not in st.session_state:
+        st.session_state.del_id_est = ''
+    if 'del_asign' not in st.session_state:
+        st.session_state.del_asign = ''
+
+    # Verificar si hay datos de estudiantes
+    if df_students.empty:
+        st.warning('No hay datos de estudiantes. Por favor, sube un archivo CSV de estudiantes en la sección "Cargar datos" de la barra lateral.')
+        return
+
     st.subheader('Notas cargadas')
     st.dataframe(df_notes[['id_estudiante', 'asignatura', 'nota_1', 'nota_2', 'nota_3', 'promedio']])
 
     st.subheader('Agregar nueva nota')
     with st.form('agregar_nota_form'):
-        id_estudiante = st.text_input('ID Estudiante')
-        asignatura = st.text_input('Asignatura').strip().lower()
-        nota1 = st.text_input('Nota 1')
-        nota2 = st.text_input('Nota 2 (opcional)')
-        nota3 = st.text_input('Nota 3 (opcional)')
+        id_estudiante = st.text_input('ID Estudiante', value=st.session_state.add_id_est)
+        asignatura = st.text_input('Asignatura', value=st.session_state.add_asign).strip().lower()
+        nota1 = st.text_input('Nota 1', value=st.session_state.add_nota1)
+        nota2 = st.text_input('Nota 2 (opcional)', value=st.session_state.add_nota2)
+        nota3 = st.text_input('Nota 3 (opcional)', value=st.session_state.add_nota3)
         submitted = st.form_submit_button('Agregar nota')
         if submitted:
             notas_lista = [nota for nota in [nota1, nota2, nota3] if nota.strip() != '']
             success = notas.agregar_nota(id_estudiante.strip(), asignatura, notas_lista, archivo_notas_destino=notes_file_path, archivo_estudiantes_destino=student_file_path)
             if success:
                 st.success('Nota agregada correctamente.')
-                st.experimental_rerun()
+                time.sleep(2)
+                # Limpiar formulario
+                st.session_state.add_id_est = ''
+                st.session_state.add_asign = ''
+                st.session_state.add_nota1 = ''
+                st.session_state.add_nota2 = ''
+                st.session_state.add_nota3 = ''
+                st.cache_data.clear()
+                st.rerun()
             else:
                 st.error('No se pudo agregar la nota. Verifique los datos.')
 
     st.subheader('Actualizar nota existente')
     with st.form('actualizar_nota_form'):
-        id_estudiante = st.text_input('ID Estudiante para actualización')
-        asignatura = st.text_input('Asignatura a actualizar').strip().lower()
-        nueva_nota = st.text_input('Nueva nota')
+        id_estudiante = st.text_input('ID Estudiante para actualización', value=st.session_state.upd_id_est)
+        asignatura = st.text_input('Asignatura a actualizar', value=st.session_state.upd_asign).strip().lower()
+        nueva_nota = st.text_input('Nueva nota', value=st.session_state.upd_nota)
         submitted = st.form_submit_button('Actualizar nota')
         if submitted:
             success = notas.actualizar_nota(id_estudiante.strip(), asignatura, nueva_nota, archivo_notas_destino=notes_file_path, archivo_estudiantes_destino=student_file_path)
             if success:
                 st.success('Nota actualizada correctamente.')
-                st.experimental_rerun()
+                time.sleep(2)
+                # Limpiar formulario
+                st.session_state.upd_id_est = ''
+                st.session_state.upd_asign = ''
+                st.session_state.upd_nota = ''
+                st.cache_data.clear()
+                st.rerun()
             else:
                 st.error('No se pudo actualizar la nota. Verifique los datos.')
 
     with st.expander('Eliminar nota (dos pasos)'):
-        idn = st.text_input('ID Estudiante para eliminar nota')
-        asign = st.text_input('Asignatura a eliminar').strip().lower()
+        idn = st.text_input('ID Estudiante para eliminar nota', value=st.session_state.del_id_est)
+        asign = st.text_input('Asignatura a eliminar', value=st.session_state.del_asign).strip().lower()
         if idn and asign:
             matches = df_notes.loc[(df_notes['id_estudiante'] == idn) & (df_notes['asignatura'] == asign)]
             if not matches.empty:
@@ -249,7 +331,12 @@ def render_notes_page(df_students: pd.DataFrame, df_notes: pd.DataFrame, student
                     ok = notas.eliminar_nota(idn, asign, archivo_notas_destino=notes_file_path, archivo_estudiantes_destino=student_file_path)
                     if ok:
                         st.success('Nota eliminada correctamente.')
-                        st.experimental_rerun()
+                        time.sleep(2)
+                        # Limpiar formulario
+                        st.session_state.del_id_est = ''
+                        st.session_state.del_asign = ''
+                        st.cache_data.clear()
+                        st.rerun()
                     else:
                         st.error('No se pudo eliminar la nota.')
             else:
@@ -269,6 +356,11 @@ def render_notes_page(df_students: pd.DataFrame, df_notes: pd.DataFrame, student
 def render_averages_page(df_students: pd.DataFrame, notes_file_path: str):
     st.header('Promedios')
     st.markdown('Revisa promedios usando los datos del sistema.')
+
+    # Verificar si hay datos
+    if df_students.empty:
+        st.warning('No hay datos de estudiantes. Por favor, sube un archivo CSV de estudiantes en la sección "Cargar datos" de la barra lateral.')
+        return
 
     promedios_data = promedios.obtener_promedios_por_estudiante()
     if not promedios_data:
@@ -316,6 +408,11 @@ def render_analysis_page(df_students: pd.DataFrame):
     st.header('Análisis')
     st.markdown('Gráficos dinámicos para comprender tendencias por carrera, asignatura y edades.')
 
+    # Verificar si hay datos
+    if df_students.empty:
+        st.warning('No hay datos de estudiantes. Por favor, sube un archivo CSV de estudiantes en la sección "Cargar datos" de la barra lateral.')
+        return
+
     st.subheader('Edad vs promedio')
     scatter = df_students.dropna(subset=['edad', 'promedio'])
     if not scatter.empty:
@@ -343,7 +440,16 @@ def main():
     st.title('Dashboard Estudiantil')
     st.markdown('Una interfaz interactiva para gestionar estudiantes, notas y promedios usando las funcionalidades existentes.')
 
-    # Sidebar: subida de archivos (acepta cualquier nombre, se almacena en /uploads)
+    # SIDEBAR: Reorganización - Título, Panel, Carga de datos, Archivos
+    st.sidebar.title('Sistema de Gestión')
+    
+    # Seleccionar sección primero
+    page = st.sidebar.selectbox('Seleccionar sección', ['Estudiantes', 'Notas', 'Promedios', 'Análisis'])
+    
+    # Separator
+    st.sidebar.markdown('---')
+    
+    # Cargar datos
     st.sidebar.header('Cargar datos')
     uploaded_students = st.sidebar.file_uploader('Subir CSV de estudiantes', type=['csv'], key='up_students')
     uploaded_notes = st.sidebar.file_uploader('Subir archivo de notas (CSV o TXT)', type=['csv', 'txt'], key='up_notes')
@@ -365,23 +471,51 @@ def main():
         st.sidebar.success(f'Archivo de notas subido: {uploaded_notes.name}')
         notes_file_path = destn
 
-    # Mostrar opción para eliminar archivos subidos
+    # Archivos subidos
     st.sidebar.markdown('---')
-    st.sidebar.markdown('Archivos subidos:')
+    st.sidebar.markdown('**Tus archivos** (descarga o elimina)')
     files = os.listdir(UPLOADS_DIR)
-    for fn in files:
-        col1, col2 = st.sidebar.columns([3,1])
-        col1.write(fn)
-        if col2.button('Eliminar', key=f'del_{fn}'):
-            try:
-                os.remove(os.path.join(UPLOADS_DIR, fn))
-                st.experimental_rerun()
-            except Exception:
-                st.sidebar.error('No se pudo eliminar el archivo')
+    
+    if files:
+        for fn in files:
+            col1, col2, col3 = st.sidebar.columns([2, 1, 1])
+            col1.write(f'📄 {fn}')
+            
+            # Botón de descarga
+            file_path = os.path.join(UPLOADS_DIR, fn)
+            with open(file_path, 'rb') as f:
+                file_data = f.read()
+            col2.download_button(
+                label='⬇️',
+                data=file_data,
+                file_name=fn,
+                key=f'download_{fn}',
+                help='Descargar archivo'
+            )
+            
+            # Botón de eliminar
+            if col3.button('🗑️', key=f'del_{fn}', help='Eliminar archivo'):
+                try:
+                    os.remove(file_path)
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception:
+                    st.sidebar.error('No se pudo eliminar el archivo')
+    else:
+        st.sidebar.info('Sin archivos aún')
 
-    page = st.sidebar.selectbox('Seleccionar sección', ['Estudiantes', 'Notas', 'Promedios', 'Análisis'])
+    # Información del sistema
+    st.sidebar.markdown('---')
+    st.sidebar.markdown('**Módulos del sistema:**')
+    st.sidebar.markdown('- `estudiantes.py`\n- `notas.py`\n- `promedios.py`\n- `utils.py`')
+
+    # Cargar datos
     df_students = load_students(archivo=student_file_path)
     df_notes = load_notes(archivo=notes_file_path)
+
+    # Mostrar información de estado
+    if df_students.empty and df_notes.empty:
+        st.info('¡Bienvenido! Para comenzar, sube un archivo CSV de estudiantes en la sección "Cargar datos" de la barra lateral izquierda. Puedes subir archivos adicionales de notas si lo deseas.')
 
     if page == 'Estudiantes':
         render_students_page(df_students, student_file_path)
@@ -391,14 +525,6 @@ def main():
         render_averages_page(df_students, notes_file_path)
     elif page == 'Análisis':
         render_analysis_page(df_students)
-
-    # Información adicional en la barra lateral sobre el propósito del dashboard, instrucciones de uso y conexión con los módulos del sistema, proporcionando contexto y orientación a los usuarios para aprovechar al máximo las funcionalidades del dashboard.
-    st.sidebar.markdown('---')
-    st.sidebar.markdown('Conexión con los módulos del sistema:')
-    st.sidebar.markdown('- `estudiantes.py`')
-    st.sidebar.markdown('- `notas.py`')
-    st.sidebar.markdown('- `promedios.py`')
-    st.sidebar.markdown('- `utils.py`')
 
 
 if __name__ == '__main__':

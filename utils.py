@@ -5,8 +5,8 @@ para parsear valores numéricos y extraer notas de filas CSV.
 """
 
 # archivos de datos
-archivo_estudiantes = "estudiantes.csv"
-archivo_notas = "notas.txt"
+archivo_estudiantes = "uploads/estudiantes.csv"
+archivo_notas = "uploads/notas.txt"
 
 # catálogo de carreras y sus asignaturas asociadas
 CARRERAS = {
