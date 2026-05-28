@@ -72,6 +72,19 @@ def load_notes(archivo=None) -> pd.DataFrame:
     return df
 
 
+def format_decimal(value):
+    try:
+        if pd.isna(value):
+            return ''
+        value = float(value)
+    except Exception:
+        return str(value)
+    formatted = f"{value:.2f}"
+    if '.' in formatted:
+        formatted = formatted.rstrip('0').rstrip('.')
+    return formatted
+
+
 # career_assignment_filters para aplicar filtros dinámicos por carrera y asignatura en el dashboard, permitiendo a los usuarios explorar los datos de estudiantes según sus intereses específicos.
 def career_assignment_filters(df: pd.DataFrame):
     carreras = sorted(df['carrera'].dropna().unique())
@@ -118,7 +131,8 @@ def plot_bar_average(df: pd.DataFrame, group_by: str, label: str, title: str):
 
 def render_students_page(df_students: pd.DataFrame, student_file_path: str):
     st.header('Estudiantes')
-    st.markdown('Explora la lista de estudiantes y filtra por carrera o asignatura.')
+    st.markdown('Administra la información de estudiantes, filtra por carrera o asignatura y busca por ID para ver detalles rápidos.')
+    st.info('Usa los paneles de registro, actualización y eliminación para mantener el archivo de estudiantes actualizado. Luego revisa la tabla principal para verificar los cambios.')
     # Inicializar session_state para limpiar formularios
     if 'reg_nombre' not in st.session_state:
         st.session_state.reg_nombre = ''
@@ -146,7 +160,11 @@ def render_students_page(df_students: pd.DataFrame, student_file_path: str):
     # Aplicar filtros dinámicos por carrera y asignatura en el dashboard, permitiendo a los usuarios explorar los datos de estudiantes según sus intereses específicos.
     df_filtrado = career_assignment_filters(df_students)
     st.subheader('Tabla de estudiantes')
-    st.dataframe(df_filtrado[['matricula', 'id_estudiante', 'nombre', 'apellido', 'edad', 'carrera', 'asignatura', 'nota_1', 'nota_2', 'nota_3', 'promedio']])
+    display_students = df_filtrado[['matricula', 'id_estudiante', 'nombre', 'apellido', 'edad', 'carrera', 'asignatura', 'nota_1', 'nota_2', 'nota_3', 'promedio']].copy()
+    for col in ['nota_1', 'nota_2', 'nota_3', 'promedio']:
+        if col in display_students.columns:
+            display_students[col] = display_students[col].apply(format_decimal)
+    st.dataframe(display_students)
 
     # Mostrar métricas clave sobre los estudiantes, como el total de estudiantes, registros con notas y carreras disponibles, proporcionando una visión rápida del estado general de los datos.
     col1, col2, col3 = st.columns(3)
@@ -242,7 +260,7 @@ def render_students_page(df_students: pd.DataFrame, student_file_path: str):
 
 def render_notes_page(df_students: pd.DataFrame, df_notes: pd.DataFrame, student_file_path: str, notes_file_path: str):
     st.header('Notas')
-    st.markdown('Visualiza y actualiza las notas usando la lógica del sistema existente.')
+    st.markdown('Gestiona notas por estudiante. Selecciona primero el ID del estudiante para cargar las asignaturas disponibles según su carrera o el historial de notas.')
 
     # Inicializar session_state para limpiar formularios de notas
     if 'add_id_est' not in st.session_state:
@@ -259,82 +277,158 @@ def render_notes_page(df_students: pd.DataFrame, df_notes: pd.DataFrame, student
         st.session_state.upd_id_est = ''
     if 'upd_asign' not in st.session_state:
         st.session_state.upd_asign = ''
+    if 'upd_note_field' not in st.session_state:
+        st.session_state.upd_note_field = 'nota_1'
     if 'upd_nota' not in st.session_state:
         st.session_state.upd_nota = ''
     if 'del_id_est' not in st.session_state:
         st.session_state.del_id_est = ''
     if 'del_asign' not in st.session_state:
         st.session_state.del_asign = ''
+    if 'del_note_field' not in st.session_state:
+        st.session_state.del_note_field = 'nota_1'
+    if 'reset_add_form' not in st.session_state:
+        st.session_state.reset_add_form = False
+    if 'reset_upd_form' not in st.session_state:
+        st.session_state.reset_upd_form = False
+    if 'reset_del_form' not in st.session_state:
+        st.session_state.reset_del_form = False
+
+    if st.session_state.reset_add_form:
+        st.session_state.add_id_est = ''
+        st.session_state.add_asign = ''
+        st.session_state.add_nota1 = ''
+        st.session_state.add_nota2 = ''
+        st.session_state.add_nota3 = ''
+        st.session_state.reset_add_form = False
+    if st.session_state.reset_upd_form:
+        st.session_state.upd_id_est = ''
+        st.session_state.upd_asign = ''
+        st.session_state.upd_note_field = 'nota_1'
+        st.session_state.upd_nota = ''
+        st.session_state.reset_upd_form = False
+    if st.session_state.reset_del_form:
+        st.session_state.del_id_est = ''
+        st.session_state.del_asign = ''
+        st.session_state.del_note_field = 'nota_1'
+        st.session_state.reset_del_form = False
 
     # Verificar si hay datos de estudiantes
     if df_students.empty:
         st.warning('No hay datos de estudiantes. Por favor, sube un archivo CSV de estudiantes en la sección "Cargar datos" de la barra lateral.')
         return
 
+    def obtener_asignaturas_por_estudiante(id_estudiante: str):
+        if not id_estudiante:
+            return []
+        estudiante = df_students.loc[df_students['id_estudiante'] == id_estudiante]
+        if estudiante.empty:
+            return []
+        carrera = str(estudiante.iloc[0]['carrera']).strip().lower()
+        if not carrera:
+            return []
+        return estudiantes.obtener_asignaturas_por_carrera(carrera)
+
+    def obtener_asignaturas_existentes(id_estudiante: str):
+        if not id_estudiante:
+            return []
+        asignaturas = sorted(df_notes.loc[df_notes['id_estudiante'] == id_estudiante, 'asignatura'].dropna().unique())
+        if asignaturas:
+            return asignaturas
+        return obtener_asignaturas_por_estudiante(id_estudiante)
+
     st.subheader('Notas cargadas')
-    st.dataframe(df_notes[['id_estudiante', 'asignatura', 'nota_1', 'nota_2', 'nota_3', 'promedio']])
+    display_notes = df_notes[['id_estudiante', 'asignatura', 'nota_1', 'nota_2', 'nota_3', 'promedio']].copy()
+    for col in ['nota_1', 'nota_2', 'nota_3', 'promedio']:
+        if col in display_notes.columns:
+            display_notes[col] = display_notes[col].apply(format_decimal)
+    st.dataframe(display_notes)
 
     st.subheader('Agregar nueva nota')
+    st.info('Selecciona el estudiante primero para que se muestren las asignaturas válidas según su carrera. Si no aparece una lista, ingresa la asignatura manualmente.')
+    student_ids = [''] + sorted(df_students['id_estudiante'].dropna().unique().tolist())
     with st.form('agregar_nota_form'):
-        id_estudiante = st.text_input('ID Estudiante', value=st.session_state.add_id_est)
-        asignatura = st.text_input('Asignatura', value=st.session_state.add_asign).strip().lower()
-        nota1 = st.text_input('Nota 1', value=st.session_state.add_nota1)
-        nota2 = st.text_input('Nota 2 (opcional)', value=st.session_state.add_nota2)
-        nota3 = st.text_input('Nota 3 (opcional)', value=st.session_state.add_nota3)
+        id_estudiante = st.selectbox('ID Estudiante', options=student_ids, index=0, key='add_id_est')
+        asignaturas = obtener_asignaturas_por_estudiante(id_estudiante)
+        if asignaturas:
+            asignatura = st.selectbox('Asignatura', options=[''] + asignaturas, index=0, key='add_asign')
+            if id_estudiante:
+                st.info(f'Carrera vinculada detectada para este estudiante. Elige la asignatura correspondiente.')
+        else:
+            asignatura = st.text_input('Asignatura', value=st.session_state.add_asign, key='add_asign').strip().lower()
+        nota1 = st.text_input('Nota 1', value=st.session_state.add_nota1, key='add_nota1')
+        nota2 = st.text_input('Nota 2 (opcional)', value=st.session_state.add_nota2, key='add_nota2')
+        nota3 = st.text_input('Nota 3 (opcional)', value=st.session_state.add_nota3, key='add_nota3')
         submitted = st.form_submit_button('Agregar nota')
         if submitted:
-            notas_lista = [nota for nota in [nota1, nota2, nota3] if nota.strip() != '']
-            success = notas.agregar_nota(id_estudiante.strip(), asignatura, notas_lista, archivo_notas_destino=notes_file_path, archivo_estudiantes_destino=student_file_path)
-            if success:
-                st.success('Nota agregada correctamente.')
-                time.sleep(2)
-                # Limpiar formulario
-                st.session_state.add_id_est = ''
-                st.session_state.add_asign = ''
-                st.session_state.add_nota1 = ''
-                st.session_state.add_nota2 = ''
-                st.session_state.add_nota3 = ''
-                st.cache_data.clear()
-                st.rerun()
+            if not id_estudiante:
+                st.error('Debes seleccionar un ID de estudiante válido.')
+            elif not asignatura:
+                st.error('Debes seleccionar o ingresar una asignatura válida.')
             else:
-                st.error('No se pudo agregar la nota. Verifique los datos.')
+                notas_lista = [nota for nota in [nota1, nota2, nota3] if nota.strip() != '']
+                success = notas.agregar_nota(id_estudiante.strip(), asignatura, notas_lista, archivo_notas_destino=notes_file_path, archivo_estudiantes_destino=student_file_path)
+                if success:
+                    st.success('Nota agregada correctamente.')
+                    time.sleep(2)
+                    st.session_state.reset_add_form = True
+                    st.cache_data.clear()
+                    st.rerun()
+                else:
+                    st.error('No se pudo agregar la nota. Verifique los datos.')
 
     st.subheader('Actualizar nota existente')
+    st.info('Elige el ID del estudiante, la asignatura y el campo de nota (nota_1, nota_2 o nota_3) que deseas actualizar.')
     with st.form('actualizar_nota_form'):
-        id_estudiante = st.text_input('ID Estudiante para actualización', value=st.session_state.upd_id_est)
-        asignatura = st.text_input('Asignatura a actualizar', value=st.session_state.upd_asign).strip().lower()
-        nueva_nota = st.text_input('Nueva nota', value=st.session_state.upd_nota)
+        id_estudiante = st.selectbox('ID Estudiante para actualización', options=student_ids, index=0, key='upd_id_est')
+        asignaturas = obtener_asignaturas_existentes(id_estudiante)
+        if asignaturas:
+            asignatura = st.selectbox('Asignatura a actualizar', options=[''] + asignaturas, index=0, key='upd_asign')
+        else:
+            asignatura = st.text_input('Asignatura a actualizar', value=st.session_state.upd_asign, key='upd_asign').strip().lower()
+        nota_campo = st.selectbox('Nota a actualizar', ['nota_1', 'nota_2', 'nota_3'], index=['nota_1', 'nota_2', 'nota_3'].index(st.session_state.upd_note_field) if st.session_state.upd_note_field in ['nota_1','nota_2','nota_3'] else 0, key='upd_note_field')
+        nueva_nota = st.text_input('Nuevo valor de nota', value=st.session_state.upd_nota, key='upd_nota')
         submitted = st.form_submit_button('Actualizar nota')
         if submitted:
-            success = notas.actualizar_nota(id_estudiante.strip(), asignatura, nueva_nota, archivo_notas_destino=notes_file_path, archivo_estudiantes_destino=student_file_path)
-            if success:
-                st.success('Nota actualizada correctamente.')
-                time.sleep(2)
-                # Limpiar formulario
-                st.session_state.upd_id_est = ''
-                st.session_state.upd_asign = ''
-                st.session_state.upd_nota = ''
-                st.cache_data.clear()
-                st.rerun()
+            if not id_estudiante:
+                st.error('Debes seleccionar un ID de estudiante válido.')
+            elif not asignatura:
+                st.error('Debes seleccionar o ingresar una asignatura válida.')
+            elif not nota_campo:
+                st.error('Debes elegir el campo de nota a actualizar.')
+            elif not nueva_nota:
+                st.error('Debes ingresar la nueva nota.')
             else:
-                st.error('No se pudo actualizar la nota. Verifique los datos.')
+                success = notas.actualizar_nota(id_estudiante.strip(), asignatura, nota_campo, nueva_nota, archivo_notas_destino=notes_file_path, archivo_estudiantes_destino=student_file_path)
+                if success:
+                    st.success('Nota actualizada correctamente.')
+                    time.sleep(2)
+                    st.session_state.reset_upd_form = True
+                    st.cache_data.clear()
+                    st.rerun()
+                else:
+                    st.error('No se pudo actualizar la nota. Verifique los datos.')
 
     with st.expander('Eliminar nota (dos pasos)'):
-        idn = st.text_input('ID Estudiante para eliminar nota', value=st.session_state.del_id_est)
-        asign = st.text_input('Asignatura a eliminar', value=st.session_state.del_asign).strip().lower()
-        if idn and asign:
+        st.info('Selecciona el estudiante, asignatura y el campo de nota que quieres eliminar. Luego confirma escribiendo ELIMINAR.')
+        idn = st.selectbox('ID Estudiante para eliminar nota', options=student_ids, index=0, key='del_id_est')
+        asignaturas = obtener_asignaturas_existentes(idn)
+        if asignaturas:
+            asign = st.selectbox('Asignatura a eliminar', options=[''] + asignaturas, index=0, key='del_asign')
+        else:
+            asign = st.text_input('Asignatura a eliminar', value=st.session_state.del_asign, key='del_asign').strip().lower()
+        nota_campo_eliminar = st.selectbox('Nota a eliminar', ['nota_1', 'nota_2', 'nota_3'], index=['nota_1', 'nota_2', 'nota_3'].index(st.session_state.del_note_field) if st.session_state.del_note_field in ['nota_1','nota_2','nota_3'] else 0, key='del_note_field')
+        if idn and asign and nota_campo_eliminar:
             matches = df_notes.loc[(df_notes['id_estudiante'] == idn) & (df_notes['asignatura'] == asign)]
             if not matches.empty:
                 st.write(matches.reset_index(drop=True))
                 confirm = st.text_input('Escriba ELIMINAR para confirmar la eliminación de la nota')
                 if confirm == 'ELIMINAR':
-                    ok = notas.eliminar_nota(idn, asign, archivo_notas_destino=notes_file_path, archivo_estudiantes_destino=student_file_path)
+                    ok = notas.eliminar_nota(idn, asign, nota_campo_eliminar, archivo_notas_destino=notes_file_path, archivo_estudiantes_destino=student_file_path)
                     if ok:
                         st.success('Nota eliminada correctamente.')
                         time.sleep(2)
-                        # Limpiar formulario
-                        st.session_state.del_id_est = ''
-                        st.session_state.del_asign = ''
+                        st.session_state.reset_del_form = True
                         st.cache_data.clear()
                         st.rerun()
                     else:
@@ -353,16 +447,17 @@ def render_notes_page(df_students: pd.DataFrame, df_notes: pd.DataFrame, student
         plot_grade_distribution(df_notes, 'Distribución de notas en notas')
 
 
-def render_averages_page(df_students: pd.DataFrame, notes_file_path: str):
+def render_averages_page(df_students: pd.DataFrame, student_file_path: str, notes_file_path: str):
     st.header('Promedios')
-    st.markdown('Revisa promedios usando los datos del sistema.')
+    st.markdown('Consulta el rendimiento agregado de los estudiantes y analiza quiénes están aprobando o reprobando según sus notas.')
+    st.info('Esta sección calcula los promedios por estudiante y por carrera utilizando los datos actuales de estudiantes y notas. Si actualizas registros, vuelve a cargar la página para refrescar.')
 
     # Verificar si hay datos
     if df_students.empty:
         st.warning('No hay datos de estudiantes. Por favor, sube un archivo CSV de estudiantes en la sección "Cargar datos" de la barra lateral.')
         return
 
-    promedios_data = promedios.obtener_promedios_por_estudiante()
+    promedios_data = promedios.obtener_promedios_por_estudiante(archivo_notas=notes_file_path, archivo_estudiantes=student_file_path)
     if not promedios_data:
         st.warning('No hay promedios calculables con los datos actuales.')
         return
@@ -380,7 +475,7 @@ def render_averages_page(df_students: pd.DataFrame, notes_file_path: str):
     st.subheader('Peores promedios')
     st.write(merged.sort_values('promedio_estudiante', ascending=True).head(5))
 
-    aprobados, reprobados = promedios.obtener_estados_aprobados_reprobados()
+    aprobados, reprobados = promedios.obtener_estados_aprobados_reprobados(archivo_notas=notes_file_path, archivo_estudiantes=student_file_path)
     col1, col2 = st.columns(2)
     col1.metric('Aprobados', len(aprobados))
     col2.metric('Reprobados', len(reprobados))
@@ -406,7 +501,8 @@ def render_averages_page(df_students: pd.DataFrame, notes_file_path: str):
 # render_analysis_page para mostrar la página de análisis en el dashboard, incluyendo gráficos dinámicos para comprender tendencias por carrera, asignatura y edades, proporcionando una interfaz interactiva para analizar los datos de los estudiantes desde diferentes perspectivas y descubrir patrones o insights relevantes.
 def render_analysis_page(df_students: pd.DataFrame):
     st.header('Análisis')
-    st.markdown('Gráficos dinámicos para comprender tendencias por carrera, asignatura y edades.')
+    st.markdown('Explora tendencias y comparaciones de rendimiento por edad, carrera y asignatura.')
+    st.info('Utiliza esta sección para descubrir patrones de desempeño y detectar áreas donde los estudiantes necesitan más apoyo.')
 
     # Verificar si hay datos
     if df_students.empty:
@@ -438,7 +534,7 @@ def render_analysis_page(df_students: pd.DataFrame):
 # main para iniciar el dashboard, proporcionando una estructura clara para navegar entre las diferentes secciones (estudiantes, notas, promedios, análisis) y conectando con los módulos del sistema para mostrar datos en tablas, gráficos y permitir la actualización de registros.
 def main():
     st.title('Dashboard Estudiantil')
-    st.markdown('Una interfaz interactiva para gestionar estudiantes, notas y promedios usando las funcionalidades existentes.')
+    st.markdown('Controla los datos de estudiantes, notas, promedios y análisis desde un solo lugar. Navega entre secciones para ver y actualizar información rápidamente.')
 
     # SIDEBAR: Reorganización - Título, Panel, Carga de datos, Archivos
     st.sidebar.title('Sistema de Gestión')
@@ -522,7 +618,7 @@ def main():
     elif page == 'Notas':
         render_notes_page(df_students, df_notes, student_file_path, notes_file_path)
     elif page == 'Promedios':
-        render_averages_page(df_students, notes_file_path)
+        render_averages_page(df_students, student_file_path, notes_file_path)
     elif page == 'Análisis':
         render_analysis_page(df_students)
 

@@ -11,10 +11,11 @@ from utils import archivo_estudiantes, CARRERAS, _parse_float, _extraer_notas_de
 
 
 # _obtener_fieldnames_estudiantes es una función interna que intenta leer el archivo `estudiantes.csv` para determinar los encabezados actuales. Si el archivo no existe o no tiene encabezados, devuelve una lista de encabezados predeterminada que incluye campos comunes como 'matricula', 'nombre', 'apellido', 'edad', 'id_estudiante', 'carrera', 'asignatura' y campos de notas como 'nota_1', 'nota_2' y 'nota_3'. Esta función es útil para asegurar que al registrar o actualizar estudiantes, se mantenga la consistencia en los campos utilizados en el archivo CSV.
-def _obtener_fieldnames_estudiantes():
+def _obtener_fieldnames_estudiantes(archivo=None):
     """Obtener los encabezados actuales del archivo de estudiantes."""
+    path = archivo if archivo else archivo_estudiantes
     try:
-        with open(archivo_estudiantes, mode='r', newline='') as f:
+        with open(path, mode='r', newline='') as f:
             reader = csv.reader(f)
             first = next(reader, None)
             if first is None:
@@ -76,9 +77,9 @@ def cargar_estudiantes(archivo=None):
     return estudiantes
 
 # obtener_ultima_matricula devuelve el valor numérico de la última matrícula registrada en el archivo `estudiantes.csv`. Si no hay estudiantes registrados, devuelve un valor inicial de 2026000. La función lee todos los estudiantes, extrae el campo 'matricula', intenta convertirlo a un número entero y mantiene un seguimiento del valor máximo encontrado. Si ocurre algún error durante la lectura o conversión, se captura la excepción y se muestra un mensaje de error, devolviendo el valor inicial de 2026000.
-def obtener_ultima_matricula():
+def obtener_ultima_matricula(archivo=None):
     """Devolver el valor numérico de la última matrícula registrada."""
-    estudiantes = cargar_estudiantes()
+    estudiantes = cargar_estudiantes(archivo=archivo)
     if not estudiantes:
         return 2026000
     max_val = 0
@@ -93,9 +94,9 @@ def obtener_ultima_matricula():
     return max_val
 
 # obtener_ultimo_id_estudiante devuelve una tupla con el prefijo y el número del último ID de estudiante registrado en el archivo `estudiantes.csv`. El prefijo se asume que es 'EST' y el número es la parte numérica que sigue al prefijo. Si no hay estudiantes registrados, devuelve el prefijo 'EST' y un número inicial de 0. La función lee todos los estudiantes, extrae el campo 'id_estudiante', verifica si comienza con el prefijo esperado, intenta convertir la parte numérica a un entero y mantiene un seguimiento del valor máximo encontrado. Si ocurre algún error durante la lectura o conversión, se captura la excepción y se muestra un mensaje de error, devolviendo el prefijo 'EST' y el número inicial de 0.
-def obtener_ultimo_id_estudiante():
+def obtener_ultimo_id_estudiante(archivo=None):
     """Devolver el prefijo y el número del último ID de estudiante."""
-    estudiantes = cargar_estudiantes()
+    estudiantes = cargar_estudiantes(archivo=archivo)
     max_num = 0
     prefix = 'EST'
     for e in estudiantes:
@@ -111,9 +112,9 @@ def obtener_ultimo_id_estudiante():
     return (prefix, max_num)
 
 # obtener_estudiante_por_id busca un estudiante por su ID y devuelve el registro completo. La función lee todos los estudiantes, compara el campo 'id_estudiante' con el ID proporcionado (ignorando mayúsculas y espacios) y devuelve el primer registro que coincida. Si no se encuentra ningún estudiante con el ID proporcionado, devuelve None. Si ocurre algún error durante la lectura o comparación, se captura la excepción y se muestra un mensaje de error, devolviendo None.
-def obtener_estudiante_por_id(id_estudiante):
+def obtener_estudiante_por_id(id_estudiante, archivo=None):
     """Buscar un estudiante por su ID y devolver el registro completo."""
-    estudiantes = cargar_estudiantes()
+    estudiantes = cargar_estudiantes(archivo=archivo)
     target = str(id_estudiante).strip().upper()
     for e in estudiantes:
         if str(e.get('id_estudiante', '')).strip().upper() == target:
@@ -121,9 +122,9 @@ def obtener_estudiante_por_id(id_estudiante):
     return None
 
 # obtener_carrera_por_id devuelve la carrera del estudiante identificado por su ID. La función utiliza la función `obtener_estudiante_por_id` para obtener el registro completo del estudiante y luego extrae el campo 'carrera'. Si el estudiante no se encuentra o no tiene un campo de carrera válido, devuelve None. Si ocurre algún error durante la búsqueda o extracción, se captura la excepción y se muestra un mensaje de error, devolviendo None.
-def obtener_carrera_por_id(id_estudiante):
+def obtener_carrera_por_id(id_estudiante, archivo=None):
     """Devolver la carrera del estudiante identificado por su ID."""
-    estudiante = obtener_estudiante_por_id(id_estudiante)
+    estudiante = obtener_estudiante_por_id(id_estudiante, archivo=archivo)
     if estudiante and 'carrera' in estudiante:
         return str(estudiante['carrera']).strip().lower()
     return None
@@ -141,7 +142,7 @@ def registrar_estudiante(matricula, nombre, apellido, edad, id_estudiante, carre
     """Agregar un estudiante nuevo al archivo `estudiantes.csv` o a la ruta proporcionada."""
     try:
         path = archivo if archivo else archivo_estudiantes
-        fieldnames = _obtener_fieldnames_estudiantes()
+        fieldnames = _obtener_fieldnames_estudiantes(archivo=path)
         row = {
             'matricula': matricula,
             'nombre': nombre,
@@ -184,9 +185,9 @@ def registrar_estudiante_auto(nombre, apellido, edad, carrera, archivo=None):
         if carrera_norm not in CARRERAS:
             print("Error: Carrera no reconocida. Registre una carrera válida de la lista.")
             return None, None
-        last = obtener_ultima_matricula()
+        last = obtener_ultima_matricula(archivo=archivo)
         nueva_matricula = str(int(last) + 1)
-        prefix, last_id_num = obtener_ultimo_id_estudiante()
+        prefix, last_id_num = obtener_ultimo_id_estudiante(archivo=archivo)
         nuevo_id_num = last_id_num + 1
         nuevo_id = f"{prefix}{nuevo_id_num:03d}"
         registrar_estudiante(nueva_matricula, nombre, apellido, edad, nuevo_id, carrera_norm, archivo=archivo)
@@ -212,10 +213,10 @@ def listar_estudiantes():
 
 
 # estudiante_existe verifica si existe un estudiante por su matrícula o ID. La función carga los estudiantes utilizando `cargar_estudiantes`, normaliza el valor de búsqueda y compara tanto la matrícula como el ID de cada estudiante con el valor proporcionado. Si encuentra una coincidencia, devuelve True. Si no se encuentra ningún estudiante con la matrícula o ID proporcionados, devuelve False. Si ocurre algún error durante la carga o comparación, se captura la excepción y se muestra un mensaje de error, devolviendo False.
-def estudiante_existe(matricula):
+def estudiante_existe(matricula, archivo=None):
     """Verificar si existe un estudiante por matrícula o ID."""
     try:
-        estudiantes = cargar_estudiantes()
+        estudiantes = cargar_estudiantes(archivo=archivo)
         target = str(matricula).strip()
         for e in estudiantes:
             if str(e.get('matricula', '')).strip() == target or str(e.get('id_estudiante', '')).strip() == target:
@@ -233,7 +234,7 @@ def actualizar_estudiante(matricula, nombre=None, apellido=None, edad=None, id_e
         estudiantes = cargar_estudiantes(archivo=archivo)
         if not estudiantes:
             print("No hay estudiantes registrados.")
-            return
+            return False
         updated = False
         # Busca el estudiante con la matrícula proporcionada y actualiza los campos que se le pasen como parámetros (nombre, apellido, edad, ID y carrera). Después de actualizar el estudiante, escribe nuevamente la lista completa de estudiantes en el archivo CSV. Si no se encuentra ningún estudiante con la matrícula proporcionada, muestra un mensaje indicando que no se encontró el estudiante para actualizar. Si ocurre algún error durante la carga, actualización o escritura de los estudiantes, se captura la excepción y se muestra un mensaje de error, devolviendo False. Si la actualización se realiza exitosamente, devuelve True.
         for e in estudiantes:
@@ -258,8 +259,8 @@ def actualizar_estudiante(matricula, nombre=None, apellido=None, edad=None, id_e
         if not updated:
             print("Estudiante no encontrado para actualizar.")
             return False
-        fieldnames = _obtener_fieldnames_estudiantes()
         path = archivo if archivo else archivo_estudiantes
+        fieldnames = _obtener_fieldnames_estudiantes(archivo=path)
         # Escribe la lista completa de estudiantes actualizada en el archivo CSV de destino
         with open(path, mode='w', newline='') as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -310,8 +311,8 @@ def eliminar_estudiante(identificador, archivo=None):
         if not removed:
             print('No se encontró el estudiante a eliminar.')
             return False
-        fieldnames = _obtener_fieldnames_estudiantes()
         path = archivo if archivo else archivo_estudiantes
+        fieldnames = _obtener_fieldnames_estudiantes(archivo=path)
         with open(path, mode='w', newline='') as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames)
             writer.writeheader()

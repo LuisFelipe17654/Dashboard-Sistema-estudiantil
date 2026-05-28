@@ -4,5 +4,7 @@ EST002,contabilidad,3.8,3.5,4.0
 EST003,constitucional,2.9,3.2,2.8
 EST004,psicologia general,5.0,4.8,5.0
 EST005,dibujo tecnico,1.5,2.5,3.5
-EST006,civil,3.6,3.8,
-
+EST006,civil,3.9,3.8,
+EST001,estructuras de datos,,,
+EST001,programacion i,4.0,4.6,
+EST007,psicologia general,3.9,4.2,4.3

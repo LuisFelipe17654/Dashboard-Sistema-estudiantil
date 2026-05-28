@@ -151,10 +151,10 @@ def agregar_nota(id_estudiante, asignatura, nota, archivo_notas_destino=None, ar
                 print("Error: La nota debe ser un número entre 1.0 y 5.0.")
                 return
             notas = [parsed]
-        if not estudiante_existe(id_estudiante):
+        if not estudiante_existe(id_estudiante, archivo=archivo_estudiantes_destino):
             print("Error: El estudiante no existe.")
             return
-        carrera = obtener_carrera_por_id(id_estudiante)
+        carrera = obtener_carrera_por_id(id_estudiante, archivo=archivo_estudiantes_destino)
         if carrera:
             asignaturas = obtener_asignaturas_por_carrera(carrera)
             if asignaturas and asignatura.strip().lower() not in asignaturas:
@@ -196,28 +196,31 @@ def agregar_nota(id_estudiante, asignatura, nota, archivo_notas_destino=None, ar
 
 
 # Funciones para agregar, actualizar y listar notas, así como leer el archivo de notas y sincronizar con el CSV de estudiantes.
-def actualizar_nota(id_estudiante, asignatura, nueva_nota, archivo_notas_destino=None, archivo_estudiantes_destino=None):
-    """Actualizar una nota existente en el archivo de notas y sincronizar el CSV."""
+def actualizar_nota(id_estudiante, asignatura, nota_campo, nueva_nota, archivo_notas_destino=None, archivo_estudiantes_destino=None):
+    """Actualizar una nota específica (nota_1, nota_2 o nota_3) en el archivo de notas y sincronizar el CSV."""
     try:
+        nota_campo = str(nota_campo).strip().lower()
+        if nota_campo not in ('nota_1', 'nota_2', 'nota_3'):
+            print("Error: El campo de nota debe ser nota_1, nota_2 o nota_3.")
+            return False
         parsed = _parse_float(nueva_nota)
         if parsed is None or parsed < 1.0 or parsed > 5.0:
             print("Error: La nota debe ser un número entre 1.0 y 5.0.")
-            return
+            return False
         updated = False
         notas_para_csv = None
         path = archivo_notas_destino if archivo_notas_destino else archivo_notas
         with open(path, mode='r', newline='') as file:
             reader = csv.DictReader(file)
             fieldnames = reader.fieldnames or []
+            if nota_campo not in fieldnames:
+                fieldnames = list(dict.fromkeys(fieldnames + [nota_campo]))
             registros = []
             for row in reader:
                 if str(row.get('id_estudiante') or row.get('ID_ESTUDIANTE') or row.get('id') or row.get('matricula')) == str(id_estudiante) and str(row.get('asignatura') or row.get('ASIGNATURA') or '') == str(asignatura):
-                    for key in ['nota_1', 'nota_2', 'nota_3', 'nota']:
-                        if key in row:
-                            row[key] = parsed
-                            updated = True
-                            break
-                    notas_para_csv = [row.get('nota_1', ''), row.get('nota_2', ''), row.get('nota_3', '')]
+                    row[nota_campo] = parsed
+                    updated = True
+                    notas_para_csv = [_parse_float(row.get('nota_1')), _parse_float(row.get('nota_2')), _parse_float(row.get('nota_3'))]
                 registros.append(row)
         if not updated:
             print("No se encontró la nota indicada para actualizar.")
@@ -250,20 +253,34 @@ def listar_notas():
         print(f"ID: {r.get('id_estudiante')}, Asignatura: {r.get('asignatura')}, Notas: {r.get('notas')}")
 
 
-def eliminar_nota(id_estudiante, asignatura, archivo_notas_destino=None, archivo_estudiantes_destino=None):
-    """Eliminar una nota por ID de estudiante y asignatura. Devuelve True si se eliminó."""
+def eliminar_nota(id_estudiante, asignatura, nota_campo, archivo_notas_destino=None, archivo_estudiantes_destino=None):
+    """Eliminar un campo de nota específico (nota_1, nota_2 o nota_3) para un estudiante y asignatura."""
     try:
+        nota_campo = str(nota_campo).strip().lower()
+        if nota_campo not in ('nota_1', 'nota_2', 'nota_3'):
+            print('Error: El campo de nota debe ser nota_1, nota_2 o nota_3.')
+            return False
         path = archivo_notas_destino if archivo_notas_destino else archivo_notas
         with open(path, mode='r', newline='') as file:
             reader = csv.DictReader(file)
             fieldnames = reader.fieldnames or []
+            if nota_campo not in fieldnames:
+                fieldnames = list(dict.fromkeys(fieldnames + [nota_campo]))
             registros = [row for row in reader]
         nuevo = []
         removed = False
+        remaining_notes = None
         for row in registros:
             idv = str(row.get('id_estudiante') or row.get('ID_ESTUDIANTE') or row.get('id') or row.get('matricula'))
             asig = str(row.get('asignatura') or row.get('ASIGNATURA') or '')
             if idv == str(id_estudiante) and asig == str(asignatura):
+                if nota_campo not in row:
+                    row[nota_campo] = ''
+                row[nota_campo] = ''
+                notas_vals = [_parse_float(row.get('nota_1')), _parse_float(row.get('nota_2')), _parse_float(row.get('nota_3'))]
+                if any(v is not None for v in notas_vals):
+                    nuevo.append(row)
+                    remaining_notes = notas_vals
                 removed = True
                 continue
             nuevo.append(row)
@@ -274,15 +291,9 @@ def eliminar_nota(id_estudiante, asignatura, archivo_notas_destino=None, archivo
             writer = csv.DictWriter(file, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(nuevo)
-
-        # Buscar si quedan notas para ese estudiante/asignatura y actualizar CSV de estudiantes
-        encontrados = [r for r in nuevo if (str(r.get('id_estudiante') or r.get('ID_ESTUDIANTE') or r.get('id') or r.get('matricula')) == str(id_estudiante) and str(r.get('asignatura') or r.get('ASIGNATURA') or '') == str(asignatura))]
-        if encontrados:
-            row = encontrados[-1]
-            notas_vals = [_parse_float(row.get('nota_1')), _parse_float(row.get('nota_2')), _parse_float(row.get('nota_3'))]
-            _guardar_nota_en_csv(id_estudiante, asignatura, notas_vals, archivo_estudiantes_destino=archivo_estudiantes_destino)
+        if remaining_notes is not None:
+            _guardar_nota_en_csv(id_estudiante, asignatura, remaining_notes, archivo_estudiantes_destino=archivo_estudiantes_destino)
         else:
-            # No quedan notas para esa asignatura; limpiar en CSV
             _guardar_nota_en_csv(id_estudiante, '', [], archivo_estudiantes_destino=archivo_estudiantes_destino)
         print('Nota eliminada correctamente.')
         return True

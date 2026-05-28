@@ -30,11 +30,11 @@ def _promedio_por_estudiante(registros):
 
 
 # obtener_proemdio_por_estudiante ayuda a calcular el promedio de cada estudiante utilizando los registros de notas disponibles. Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
-def obtener_promedios_por_estudiante():
+def obtener_promedios_por_estudiante(archivo_notas=None, archivo_estudiantes=None):
     """Devolver un diccionario de promedios por ID de estudiante."""
-    registros = _leer_notas_txt()
+    registros = _leer_notas_txt(archivo=archivo_notas)
     if not registros:
-        estudiantes_list = cargar_estudiantes()
+        estudiantes_list = cargar_estudiantes(archivo=archivo_estudiantes)
         registros = []
         for e in estudiantes_list:
             id_est = e.get('id_estudiante') or e.get('matricula')
@@ -45,25 +45,25 @@ def obtener_promedios_por_estudiante():
 
 
 # calcular_promedio_por_id ayuda a calcular el promedio de un estudiante específico por su ID utilizando los registros de notas disponibles. Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
-def calcular_promedio_por_id(id_estudiante):
+def calcular_promedio_por_id(id_estudiante, archivo_notas=None, archivo_estudiantes=None):
     """Calcular y devolver el promedio de un estudiante por su ID."""
-    promedios = obtener_promedios_por_estudiante()
+    promedios = obtener_promedios_por_estudiante(archivo_notas=archivo_notas, archivo_estudiantes=archivo_estudiantes)
     return promedios.get(id_estudiante)
 
 
 # obtener_estados_aprobados_reprobados devuelve dos diccionarios: uno con los estudiantes aprobados (promedio >= 3.0) y otro con los reprobados (promedio < 3.0), utilizando los promedios calculados a partir de los registros de notas disponibles. Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
-def obtener_estados_aprobados_reprobados():
+def obtener_estados_aprobados_reprobados(archivo_notas=None, archivo_estudiantes=None):
     """Devolver listas de aprobados y reprobados según promedio."""
-    promedios = obtener_promedios_por_estudiante()
+    promedios = obtener_promedios_por_estudiante(archivo_notas=archivo_notas, archivo_estudiantes=archivo_estudiantes)
     aprobados = {id_est: prom for id_est, prom in promedios.items() if prom >= 3.0}
     reprobados = {id_est: prom for id_est, prom in promedios.items() if prom < 3.0}
     return aprobados, reprobados
 
 # Funciones para calcular promedios por estudiante, listar estudiantes por promedio y mostrar aprobados/reprobados según los registros de notas disponibles. Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
-def calcular_promedio(id_estudiante):
+def calcular_promedio(id_estudiante, archivo_notas=None, archivo_estudiantes=None):
     """Imprimir el promedio del estudiante identificado por `id_estudiante`."""
     try:
-        registros = _leer_notas_txt()
+        registros = _leer_notas_txt(archivo=archivo_notas)
         # Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
         if registros:
             promedios = _promedio_por_estudiante(registros)
@@ -73,7 +73,7 @@ def calcular_promedio(id_estudiante):
                 return
             print(f"El promedio del estudiante {id_estudiante} es: {promedio:.2f}")
             return
-        estudiantes = cargar_estudiantes()
+        estudiantes = cargar_estudiantes(archivo=archivo_estudiantes)
         registros = []
         # For para extraer notas del CSV de estudiantes para el cálculo si no hay registros en `notas.txt`.
         for e in estudiantes:
@@ -92,13 +92,13 @@ def calcular_promedio(id_estudiante):
 
 
 # Funciones para calcular promedios por estudiante, listar estudiantes por promedio y mostrar aprobados/reprobados según los registros de notas disponibles. Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
-def estudiantes_mayor_promedio():
+def estudiantes_mayor_promedio(archivo_notas=None, archivo_estudiantes=None):
     """Mostrar los estudiantes ordenados de mayor a menor promedio."""
     try:
-        registros = _leer_notas_txt()
+        registros = _leer_notas_txt(archivo=archivo_notas)
         # Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
         if not registros:
-            estudiantes = cargar_estudiantes()
+            estudiantes = cargar_estudiantes(archivo=archivo_estudiantes)
             registros = []
             for e in estudiantes:
                 id_est = e.get('id_estudiante') or e.get('matricula')
@@ -119,13 +119,13 @@ def estudiantes_mayor_promedio():
 
 
 # estudiantes_menor_promedio muestra los estudiantes ordenados de menor a mayor promedio utilizando los registros de notas disponibles. Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
-def estudiantes_menor_promedio():
+def estudiantes_menor_promedio(archivo_notas=None, archivo_estudiantes=None):
     """Mostrar los estudiantes ordenados de menor a mayor promedio."""
     try:
-        registros = _leer_notas_txt()
+        registros = _leer_notas_txt(archivo=archivo_notas)
         # Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
         if not registros:
-            estudiantes = cargar_estudiantes()
+            estudiantes = cargar_estudiantes(archivo=archivo_estudiantes)
             registros = []
             for e in estudiantes:
                 id_est = e.get('id_estudiante') or e.get('matricula')
@@ -146,13 +146,13 @@ def estudiantes_menor_promedio():
 
 
 # estudiantes_aprobados_reprobados muestra qué estudiantes aprobaron o reprobaron según su promedio utilizando los registros de notas disponibles. Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
-def estudiantes_aprobados_reprobados():
+def estudiantes_aprobados_reprobados(archivo_notas=None, archivo_estudiantes=None):
     """Mostrar qué estudiantes aprobaron o reprobaron según su promedio."""
     try:
-        registros = _leer_notas_txt()
+        registros = _leer_notas_txt(archivo=archivo_notas)
         # Si no hay registros en `notas.txt`, se intentará extraer notas del CSV de estudiantes para el cálculo.
         if not registros:
-            estudiantes = cargar_estudiantes()
+            estudiantes = cargar_estudiantes(archivo=archivo_estudiantes)
             registros = []
             for e in estudiantes:
                 id_est = e.get('id_estudiante') or e.get('matricula')
